@@ -36,9 +36,14 @@ class Transcriber:
                     file=audio_file,
                     language=self.config.language,
                 )
-            print(response)
-            transcription = response["text"]
-            logger.info("Transcription successful.")
+            # Ensure response contains the expected key
+            if 'text' in response:
+                transcription = response["text"]
+                logger.info("Transcription successful.")
+            else:
+                logger.error("Response does not contain 'text' key.")
+                logger.error(f"Response: {response}")
+                raise KeyError("Response does not contain 'text' key.")
         except OpenAIError as e:
             logger.error(f"OpenAI API error during transcription: {e}")
             raise e
