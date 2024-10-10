@@ -36,6 +36,7 @@ class Transcriber:
                     file=audio_file,
                     language=self.config.language,
                 )
+            print(response)
             transcription = response["text"]
             logger.info("Transcription successful.")
         except OpenAIError as e:
