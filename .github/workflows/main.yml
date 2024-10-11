@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3  # Updated to v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4  # Updated to v4
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"  # Ensure Poetry is on the PATH
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Run tests
+        run: poetry run pytest
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # Using the secret for OpenAI API key
