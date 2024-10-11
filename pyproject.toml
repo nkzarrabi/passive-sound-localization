@@ -19,6 +19,9 @@ webrtcvad-wheels = "^2.0.14"
 openai = "^1.51.0"
 python-dotenv = "^1.0.1"
 
+[tool.poetry.dev-dependencies]
+pytest = "^8.3.3"  # Add this line for pytest
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
