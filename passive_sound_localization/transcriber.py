@@ -34,16 +34,11 @@ class Transcriber:
                 response = self.openai_client.audio.transcriptions.create(
                     model=self.config.model_name,
                     file=audio_file,
-                    language=self.config.language,
+                    language= self.config.language,
                 )
-            # Ensure response contains the expected key
-            if 'text' in response:
-                transcription = response["text"]
-                logger.info("Transcription successful.")
-            else:
-                logger.error("Response does not contain 'text' key.")
-                logger.error(f"Response: {response}")
-                raise KeyError("Response does not contain 'text' key.")
+            # Access the `text` attribute directly, assuming `response` is an object
+            transcription = response.text  # Instead of response["text"]
+            logger.info("Transcription successful.")
         except OpenAIError as e:
             logger.error(f"OpenAI API error during transcription: {e}")
             raise e
