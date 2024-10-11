@@ -21,7 +21,7 @@ jobs:
       with:
         python-version: '3.13'
 
-    # Install PortAudio development headers
+    # Install PortAudio development headers 
     - name: Install PortAudio
       run: sudo apt-get install -y portaudio19-dev
 
@@ -32,6 +32,8 @@ jobs:
     - name: Install dependencies
       run: poetry install
 
-    # Run tests
+    # Run tests with OpenAI API key from secrets
     - name: Run tests
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # Pass the API key secret
       run: poetry run pytest
