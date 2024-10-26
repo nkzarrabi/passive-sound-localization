@@ -1,4 +1,5 @@
 import subprocess
+from security import safe_command
 
 
 def docker():
@@ -10,7 +11,7 @@ def docker():
         "passive_sound_localization",
         ".",
     ]
-    subprocess.run(build_command, check=True)
+    safe_command.run(subprocess.run, build_command, check=True)
 
     # Run the Docker container
     run_command = [
@@ -20,4 +21,4 @@ def docker():
         "passive_sound_localization",
         "passive_sound_localization",
     ]
-    subprocess.run(run_command, check=True)
+    safe_command.run(subprocess.run, run_command, check=True)
