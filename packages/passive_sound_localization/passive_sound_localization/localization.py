@@ -1,12 +1,7 @@
 from typing import List, Iterator, Optional, Tuple
 
-# from passive_sound_localization.models.configs.localization import LocalizationConfig
-# from passive_sound_localization.visualizer import Visualizer
-
-from models.configs.localization import (
-    LocalizationConfig,
-)  # Only needed to run with `realtime_audio.py`
-from visualizer import Visualizer
+from passive_sound_localization.models.configs.localization import LocalizationConfig
+from passive_sound_localization.visualizer import Visualizer
 from dataclasses import dataclass
 import numpy as np
 import logging
@@ -359,7 +354,7 @@ class SoundLocalizer:
             * 2
             * np.pi
             * tau[:, :, :, np.newaxis]
-            * freqs[np.newaxis, np.newaxis, np.newaxis, :]
+            * freqs[np.newaxis, np.newinstance, np.newinstance, :]
         )  # Shape: (num_grid_points, num_mics, num_mics, num_freq_bins)
         return phase_shifts
 
@@ -372,7 +367,7 @@ class SoundLocalizer:
 
         # Calculate distances between microphones and grid points
         distances_to_mics = np.linalg.norm(
-            mic_positions_2d[np.newaxis, :, :] - self.grid_points[:, np.newaxis, :],
+            mic_positions_2d[np.newinstance, :, :] - self.grid_points[:, np.newinstance, :],
             axis=2,
         )  # Shape: (num_grid_points, num_mics)
 
@@ -387,7 +382,7 @@ class SoundLocalizer:
         self, cross_spectrum: np.ndarray[Complex]
     ) -> np.ndarray[Float]:
         """Compute the beamformer energy given the cross-spectrum and delays."""
-        cross_spectrum_expanded = cross_spectrum[np.newaxis, :, :, :]
+        cross_spectrum_expanded = cross_spectrum[np.newinstance, :, :, :]
         # Multiply and sum over mics and frequency bins
         product = (
             cross_spectrum_expanded * self.phase_shifts

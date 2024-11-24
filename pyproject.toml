@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["John Finberg <johnbfinberg@gmail.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -17,10 +18,10 @@ python-dotenv = "^1.0.1"
 websockets = "^13.1"
 soundcard = "^0.4.3"
 pydub = "^0.25.1"
+pytest-asyncio = "^0.24.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.3"
-pytest-asyncio = "^0.24.0"
 
 [tool.pytest.ini_options]
 pythonpath = [
