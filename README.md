@@ -83,6 +83,18 @@ To run the `movement_library` ROS package on the lab laptop, run the following b
 source install/setup.bash && ros2 launch movement_library movement_launch.py
 ```
 
+## Integrating Movement Package with SLAM and Navigation
+To integrate the Movement Package with a SLAM and navigation package, follow these steps:
+
+1. **Research and select a suitable SLAM and navigation package**: For this project, we have chosen `Nav2` and `slam_toolbox`.
+
+2. **Add dependencies**: Ensure that the `nav2` package is listed as a dependency in `packages/movement_library/package.xml`.
+
+3. **Refactor MovementNode**: Update `packages/movement_library/movement_library/main.py` to interface with SLAM outputs and handle navigation goals.
+
+4. **Update launch file**: Modify `packages/movement_library/launch/movement_launch.py` to launch the SLAM and navigation nodes along with the movement node.
+
+5. **Test and document**: Test the integration and update the documentation accordingly.
 
 # Running Tests
 

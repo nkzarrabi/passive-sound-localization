@@ -7,11 +7,13 @@ from std_msgs.msg import Byte
 from std_msgs.msg import Float32
 from std_msgs.msg import Int32
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, PoseStamped
 
 from example_interfaces.msg import Bool
 from passive_sound_localization_msgs.msg import LocalizationResult
 from movement_library.logger import setup_logger
+
+from nav2_simple_commander.robot_navigator import BasicNavigator, NavigationResult
 
 
 class MovementNode(Node):
@@ -44,7 +46,8 @@ class MovementNode(Node):
         self.executing = False
         self.logger = logging.getLogger(__name__)
 
-    # def string_to_dict(self, msg): ...
+        # Initialize the navigator for SLAM and navigation
+        self.navigator = BasicNavigator()
 
     def battery_callback(self, msg):
         self.logger.info('battery voltage "%d"' % msg.data)
@@ -72,6 +75,17 @@ class MovementNode(Node):
             self.time = 0.0
             self.executing = True
         self.logger.info(f"Got {str(angle)} {str(distance)}")
+
+        # Convert localization result to navigation goal
+        goal_pose = PoseStamped()
+        goal_pose.header.frame_id = 'map'
+        goal_pose.header.stamp = self.get_clock().now().to_msg()
+        goal_pose.pose.position.x = distance * math.cos(math.radians(angle))
+        goal_pose.pose.position.y = distance * math.sin(math.radians(angle))
+        goal_pose.pose.orientation.w = 1.0
+
+        # Send goal to navigator
+        self.navigator.goToPose(goal_pose)
 
     def loop(self):
         # something to stop time from incrementing or reset it when we get a new input
@@ -155,61 +169,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
-
-# class MoveRobot(Node):
-#     def __init__(self):
-#         super().__init__('move_robot_node')
-
-#         # Subscriber to get data (e.g., sensor distance)
-#         self.subscription = self.create_subscription(
-#             Float32,  # Adjust type based on your topic
-#             'sensor_topic',  # Replace with the actual topic name
-#             self.sensor_callback,
-#             10)
-
-#         # Publisher to control the robot
-#         self.publisher = self.create_publisher(Twist, 'cmd_vel', 10)
-
-#         # Initializing a timer for continuous control updates
-#         timer_period = 0.1  # seconds
-#         self.timer = self.create_timer(timer_period, self.update_control)
-
-#         # Store sensor data and command variables
-#         self.sensor_data = 0.0
-#         self.move_cmd = Twist()
-
-#     def sensor_callback(self, msg):
-#         # Update sensor data when a new message arrives
-#         self.sensor_data = msg.data
-#         self.get_logger().info(f'Received sensor data: {self.sensor_data}')
-
-#     def update_control(self):
-#         # Process the sensor data and update the Twist message
-#         if self.sensor_data < 1.0:
-#             # Stop if too close to an object
-#             self.move_cmd.linear.x = 0.0
-#             self.move_cmd.angular.z = 0.0
-#         else:
-#             # Move forward if there's enough space
-#             self.move_cmd.linear.x = 0.5
-#             self.move_cmd.angular.z = 0.0
-
-#         # Publish the movement command
-#         self.publisher.publish(self.move_cmd)
-
-# def main(args=None):
-#     rclpy.init(args=args)
-#     move_robot_node = MoveRobot()
-
-#     try:
-#         rclpy.spin(move_robot_node)
-#     except KeyboardInterrupt:
-#         pass
-
-#     # Shutdown and cleanup
-#     move_robot_node.destroy_node()
-#     rclpy.shutdown()
-
-# if __name__ == '__main__':
-#     main()
