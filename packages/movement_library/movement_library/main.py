@@ -35,22 +35,142 @@ class MovementNode(Node):
             LocalizationResult, "localization_results", self.localizer_callback, 10
         )
         self.localizationSubscription = {"distance": 0, "angle": 0, "executed": False}
-        # self.create_subscription(...)
 
         self.loop_time_period = 1.0 / 10.0
         self.loop_timer = self.create_timer(self.loop_time_period, self.loop)
         self.time = 0.0
 
-        # Temporary boolean that is set to true after movement is finished...
-        # Do we want the robot to self-adjust to new vocal queues as it's moving?
+        # Temporary boolean that is set to true after movement is finished
         self.executing = False
-        self.logger = logging.getLogger(__name__)
+
+        # PID parameters
+        self.Kp_linear = 0.5  # Proportional gain for distance
+        self.Ki_linear = 0.1  # Integral gain for distance
+        self.Kd_linear = 0.05  # Derivative gain for distance
+
+        self.Kp_angular = 0.8  # Proportional gain for angle
+        self.Ki_angular = 0.2  # Integral gain for angle
+        self.Kd_angular = 0.1  # Derivative gain for angle
+
+        # PID state variables
+        self.error_linear = 0
+        self.integral_linear = 0
+        self.prev_error_linear = 0
+
+        self.error_angular = 0
+        self.integral_angular = 0
+        self.prev_error_angular = 0
 
         # Initialize the navigator for SLAM and navigation
         self.navigator = BasicNavigator()
 
     def battery_callback(self, msg):
-        self.logger.info('battery voltage "%d"' % msg.data)
+        self.logger.info(f'battery voltage "{msg.data}"')
+
+    def pid_control(self, error, integral, prev_error, Kp, Ki, Kd):
+        """Calculate the PID control signal."""
+        derivative = (error - prev_error) / self.loop_time_period
+        integral += error * self.loop_time_period
+        output = Kp * error + Ki * integral + Kd * derivative
+        return output, integral
+
+    def localizer_callback(self, msg):
+        self.logger.info("Got a localization message")
+        angle = msg.angle
+        distance = msg.distance
+
+        if not self.executing:
+            self.localizationSubscription = {
+                "distance": distance,
+                "angle": angle,
+                "executed": False,
+            }
+            self.executing = True
+            self.logger.info(f"Received angle: {angle}, distance: {distance}")
+
+            # Convert localization result to navigation goal
+            goal_pose = PoseStamped()
+            goal_pose.header.frame_id = 'map'
+            goal_pose.header.stamp = self.get_clock().now().to_msg()
+            goal_pose.pose.position.x = distance * math.cos(math.radians(angle))
+            goal_pose.pose.position.y = distance * math.sin(math.radians(angle))
+            goal_pose.pose.orientation.w = 1.0  # Assuming facing forward
+
+            # Send goal to navigator
+            self.navigator.goToPose(goal_pose)
+
+    def loop(self):
+        if not self.executing:
+            return
+
+        # Enable the robot
+        enableMsg = Bool()
+        enableMsg.data = True
+        self.enable_publisher.publish(enableMsg)
+
+        # Check the status of the navigation task
+        nav_status = self.navigator.getResult()
+        if nav_status == NavigationResult.SUCCEEDED:
+            self.logger.info("Navigation succeeded.")
+            self.executing = False
+            self.localizationSubscription["executed"] = True
+        elif nav_status == NavigationResult.FAILED:
+            self.logger.info("Navigation failed. Switching to PID control.")
+            self.execute_pid_control()
+        elif nav_status == NavigationResult.CANCELED:
+            self.logger.info("Navigation canceled.")
+            self.executing = False
+        else:
+            # Navigation is in progress; you can add more logic here if needed
+            pass
+
+    def execute_pid_control(self):
+        # Retrieve errors
+        distance_error = self.localizationSubscription["distance"]
+        angle_error = self.localizationSubscription["angle"]
+
+        # Linear PID control for distance
+        linear_control, self.integral_linear = self.pid_control(
+            distance_error,
+            self.integral_linear,
+            self.prev_error_linear,
+            self.Kp_linear,
+            self.Ki_linear,
+            self.Kd_linear,
+        )
+        self.prev_error_linear = distance_error
+
+        # Angular PID control for angle
+        angular_control, self.integral_angular = self.pid_control(
+            angle_error,
+            self.integral_angular,
+            self.prev_error_angular,
+            self.Kp_angular,
+            self.Ki_angular,
+            self.Kd_angular,
+        )
+        self.prev_error_angular = angle_error
+
+        # Create velocity message
+        velocityMsg = Twist()
+        velocityMsg.linear.x = max(0.0, min(linear_control, 1.0))  # Clamp between 0 and 1 m/s
+        velocityMsg.angular.z = max(-1.0, min(angular_control, 1.0))  # Clamp between -1 and 1 rad/s
+
+        # Stop the robot if within thresholds
+        if abs(distance_error) < 0.1:  # Within 10 cm
+            velocityMsg.linear.x = 0.0
+            self.localizationSubscription["distance"] = 0
+
+        if abs(angle_error) < 1.0:  # Within 1 degree
+            velocityMsg.angular.z = 0.0
+            self.localizationSubscription["angle"] = 0
+
+        if velocityMsg.linear.x == 0.0 and velocityMsg.angular.z == 0.0:
+            self.executing = False
+            self.localizationSubscription["executed"] = True
+
+        # Publish velocity message
+        self.cmd_vel_publisher.publish(velocityMsg)
 
     def calculate_time_xyz(self, distance, velocity):
         return distance / (velocity * 1.03)
@@ -58,102 +178,6 @@ class MovementNode(Node):
     def calculate_time_ang(self, angle, ang_velocity):
         radians = angle * math.pi / 180
         return radians / (ang_velocity * 0.9881)
-
-    def localizer_callback(self, msg):
-        self.logger.info("Got a message")
-        # angle = 360-msg.angle
-        angle = msg.angle
-        distance = msg.distance
-        if self.executing:
-            pass
-        else:
-            self.localizationSubscription = {
-                "distance": distance,
-                "angle": angle,
-                "executed": False,
-            }
-            self.time = 0.0
-            self.executing = True
-        self.logger.info(f"Got {str(angle)} {str(distance)}")
-
-        # Convert localization result to navigation goal
-        goal_pose = PoseStamped()
-        goal_pose.header.frame_id = 'map'
-        goal_pose.header.stamp = self.get_clock().now().to_msg()
-        goal_pose.pose.position.x = distance * math.cos(math.radians(angle))
-        goal_pose.pose.position.y = distance * math.sin(math.radians(angle))
-        goal_pose.pose.orientation.w = 1.0
-
-        # Send goal to navigator
-        self.navigator.goToPose(goal_pose)
-
-    def loop(self):
-        # something to stop time from incrementing or reset it when we get a new input
-        self.time = self.time + self.loop_time_period
-
-        # self.get_logger().info("time: %d"%(self.time))
-
-        enableMsg = Bool()
-        enableMsg.data = True
-        self.enable_publisher.publish(enableMsg)
-
-        velocityMsg = Twist()
-        velocityMsg.linear.z = 0.0
-        velocityMsg.angular.x = 0.0
-        velocityMsg.angular.y = 0.0
-        velocityMsg.linear.y = 0.0
-        velocityMsg.angular.z = 0.0
-        velocityMsg.linear.x = 0.0
-
-        if self.localizationSubscription["executed"]:
-            return
-
-        # Set speeds
-        spdx = 0.3  # Linear speed in m/s
-        spdang = 0.5  # Angular speed in rad/s
-
-        # Adjust angular speed based on target direction
-        if self.localizationSubscription["angle"] < 0:
-            spdang = -spdang
-
-        # Calculate movement times
-        time_xyz = self.calculate_time_xyz(
-            self.localizationSubscription["distance"], spdx
-        )
-        time_ang = self.calculate_time_ang(
-            self.localizationSubscription["angle"], spdang
-        )
-        buff = 1
-        wait = 2
-
-        time_ang = time_ang + wait
-        # print(time_xyz)
-        # print(time_ang)
-        # print(time_xyz+time_ang+buff)
-
-        # Set angular velocity
-        if self.time <= time_ang and self.time > wait:
-            velocityMsg.angular.z = spdang
-        else:
-            velocityMsg.angular.z = 0.0
-
-        # Set linear velocity
-        if self.time <= time_xyz + time_ang + buff and self.time > time_ang + buff:
-            velocityMsg.linear.x = spdx
-
-        # Stop the robot after movement
-        if self.time > (time_xyz + time_ang + buff):
-            self.localizationSubscription["distance"] = 0
-            self.localizationSubscription["angle"] = 0
-            velocityMsg.linear.x = 0.0
-            velocityMsg.angular.z = 0.0
-            self.time = 0  # not sure if needed
-            self.executing = False
-            self.localizationSubscription["executed"] = True
-        # print(velocityMsg.linear.x)
-        # print(velocityMsg.angular.z)
-
-        self.cmd_vel_publisher.publish(velocityMsg)
 
 
 def main(args=None):
