@@ -18,3 +18,8 @@ localization_node:
       channels: 1
       chunk: 1024
       device_indices: [2, 3, 4, 5]
+    particle_filter:
+      num_particles: 1000
+      state_dim: 2
+      init_state: [0.0, 0.0]
+      init_cov: [[1.0, 0.0], [0.0, 1.0]]

@@ -20,6 +20,15 @@ def generate_launch_description():
                 parameters=[
                     config,
                 ],
+            ),
+            Node(
+                package="passive_sound_localization",
+                executable="particle_filter_node",
+                name="particle_filter_node",
+                output="screen",
+                parameters=[
+                    config,
+                ],
             )
         ]
     )
