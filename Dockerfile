@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     portaudio19-dev \
     python-all-dev \
+    git \
     && rm -rf /var/lib/apt/lists/* 
 
 # Copy the pyproject.toml and poetry.lock files
@@ -29,6 +30,9 @@ WORKDIR /root/ros2_ws
 # Copy the package from the host into the container (replace `my_python_package` with your package name)
 # COPY ./passive_sound_localization /root/ros2_ws/src/passive_sound_localization
 COPY ./packages/ /root/ros2_ws/src/
+
+# Copy the ci.yml file to the .github/workflows directory
+COPY .github/workflows/ci.yml /root/ros2_ws/.github/workflows/ci.yml
 
 # Build the workspace
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build"

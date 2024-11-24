@@ -9,10 +9,6 @@ from passive_sound_localization.models.configs.openai_websocket import (
     OpenAIWebsocketConfig,
 )
 
-# from models.configs.openai_websocket import (
-#     OpenAIWebsocketConfig,
-# )  # Only needed to run with `realtime_audio.py`
-
 logger = logging.getLogger(__name__)
 
 

@@ -6,10 +6,9 @@ import threading
 from pydub import AudioSegment
 import pyaudio
 
-# from passive_sound_localization.models.configs.realtime_streamer import (
-#     RealtimeAudioStreamerConfig,
-# )
-from models.configs.realtime_streamer import RealtimeAudioStreamerConfig
+from passive_sound_localization.models.configs.realtime_streamer import (
+    RealtimeAudioStreamerConfig,
+)
 
 
 logger = logging.getLogger(__name__)
