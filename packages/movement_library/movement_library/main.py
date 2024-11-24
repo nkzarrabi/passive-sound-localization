@@ -44,7 +44,23 @@ class MovementNode(Node):
         self.executing = False
         self.logger = logging.getLogger(__name__)
 
-    # def string_to_dict(self, msg): ...
+        # PID parameters
+        self.Kp_linear = 0.5  # Proportional gain for distance
+        self.Ki_linear = 0.1  # Integral gain for distance
+        self.Kd_linear = 0.05  # Derivative gain for distance
+
+        self.Kp_angular = 0.8  # Proportional gain for angle
+        self.Ki_angular = 0.2  # Integral gain for angle
+        self.Kd_angular = 0.1  # Derivative gain for angle
+
+        # PID state variables
+        self.error_linear = 0
+        self.integral_linear = 0
+        self.prev_error_linear = 0
+
+        self.error_angular = 0
+        self.integral_angular = 0
+        self.prev_error_angular = 0
 
     def battery_callback(self, msg):
         self.logger.info('battery voltage "%d"' % msg.data)
@@ -58,87 +74,78 @@ class MovementNode(Node):
 
     def localizer_callback(self, msg):
         self.logger.info("Got a message")
-        # angle = 360-msg.angle
         angle = msg.angle
         distance = msg.distance
-        if self.executing:
-            pass
-        else:
+        if not self.executing:
             self.localizationSubscription = {
                 "distance": distance,
                 "angle": angle,
                 "executed": False,
             }
-            self.time = 0.0
             self.executing = True
         self.logger.info(f"Got {str(angle)} {str(distance)}")
 
+    def pid_control(self, error, integral, prev_error, Kp, Ki, Kd):
+        """Calculate the PID control signal."""
+        derivative = (error - prev_error) / self.loop_time_period
+        integral += error * self.loop_time_period
+        output = Kp * error + Ki * integral + Kd * derivative
+        return output, integral
+
     def loop(self):
-        # something to stop time from incrementing or reset it when we get a new input
-        self.time = self.time + self.loop_time_period
+        if not self.executing:
+            return
 
-        # self.get_logger().info("time: %d"%(self.time))
-
+        # Enable the robot
         enableMsg = Bool()
         enableMsg.data = True
         self.enable_publisher.publish(enableMsg)
 
+        # Retrieve errors
+        distance_error = self.localizationSubscription["distance"]
+        angle_error = self.localizationSubscription["angle"]
+
+        # Linear PID control for distance
+        linear_control, self.integral_linear = self.pid_control(
+            distance_error,
+            self.integral_linear,
+            self.prev_error_linear,
+            self.Kp_linear,
+            self.Ki_linear,
+            self.Kd_linear,
+        )
+        self.prev_error_linear = distance_error
+
+        # Angular PID control for angle
+        angular_control, self.integral_angular = self.pid_control(
+            angle_error,
+            self.integral_angular,
+            self.prev_error_angular,
+            self.Kp_angular,
+            self.Ki_angular,
+            self.Kd_angular,
+        )
+        self.prev_error_angular = angle_error
+
+        # Create velocity message
         velocityMsg = Twist()
-        velocityMsg.linear.z = 0.0
-        velocityMsg.angular.x = 0.0
-        velocityMsg.angular.y = 0.0
-        velocityMsg.linear.y = 0.0
-        velocityMsg.angular.z = 0.0
-        velocityMsg.linear.x = 0.0
+        velocityMsg.linear.x = max(0.0, min(linear_control, 1.0))  # Clamp between 0 and 1
+        velocityMsg.angular.z = max(-1.0, min(angular_control, 1.0))  # Clamp between -1 and 1
 
-        if self.localizationSubscription["executed"]:
-            return
-
-        # Set speeds
-        spdx = 0.3  # Linear speed in m/s
-        spdang = 0.5  # Angular speed in rad/s
-
-        # Adjust angular speed based on target direction
-        if self.localizationSubscription["angle"] < 0:
-            spdang = -spdang
-
-        # Calculate movement times
-        time_xyz = self.calculate_time_xyz(
-            self.localizationSubscription["distance"], spdx
-        )
-        time_ang = self.calculate_time_ang(
-            self.localizationSubscription["angle"], spdang
-        )
-        buff = 1
-        wait = 2
-
-        time_ang = time_ang + wait
-        # print(time_xyz)
-        # print(time_ang)
-        # print(time_xyz+time_ang+buff)
-
-        # Set angular velocity
-        if self.time <= time_ang and self.time > wait:
-            velocityMsg.angular.z = spdang
-        else:
-            velocityMsg.angular.z = 0.0
-
-        # Set linear velocity
-        if self.time <= time_xyz + time_ang + buff and self.time > time_ang + buff:
-            velocityMsg.linear.x = spdx
-
-        # Stop the robot after movement
-        if self.time > (time_xyz + time_ang + buff):
-            self.localizationSubscription["distance"] = 0
-            self.localizationSubscription["angle"] = 0
+        # Stop the robot if within thresholds
+        if abs(distance_error) < 0.1:  # Within 10 cm
             velocityMsg.linear.x = 0.0
+            self.localizationSubscription["distance"] = 0
+
+        if abs(angle_error) < 1.0:  # Within 1 degree
             velocityMsg.angular.z = 0.0
-            self.time = 0  # not sure if needed
+            self.localizationSubscription["angle"] = 0
+
+        if velocityMsg.linear.x == 0.0 and velocityMsg.angular.z == 0.0:
             self.executing = False
             self.localizationSubscription["executed"] = True
-        # print(velocityMsg.linear.x)
-        # print(velocityMsg.angular.z)
 
+        # Publish velocity message
         self.cmd_vel_publisher.publish(velocityMsg)
 
 
@@ -155,61 +162,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
-
-# class MoveRobot(Node):
-#     def __init__(self):
-#         super().__init__('move_robot_node')
-
-#         # Subscriber to get data (e.g., sensor distance)
-#         self.subscription = self.create_subscription(
-#             Float32,  # Adjust type based on your topic
-#             'sensor_topic',  # Replace with the actual topic name
-#             self.sensor_callback,
-#             10)
-
-#         # Publisher to control the robot
-#         self.publisher = self.create_publisher(Twist, 'cmd_vel', 10)
-
-#         # Initializing a timer for continuous control updates
-#         timer_period = 0.1  # seconds
-#         self.timer = self.create_timer(timer_period, self.update_control)
-
-#         # Store sensor data and command variables
-#         self.sensor_data = 0.0
-#         self.move_cmd = Twist()
-
-#     def sensor_callback(self, msg):
-#         # Update sensor data when a new message arrives
-#         self.sensor_data = msg.data
-#         self.get_logger().info(f'Received sensor data: {self.sensor_data}')
-
-#     def update_control(self):
-#         # Process the sensor data and update the Twist message
-#         if self.sensor_data < 1.0:
-#             # Stop if too close to an object
-#             self.move_cmd.linear.x = 0.0
-#             self.move_cmd.angular.z = 0.0
-#         else:
-#             # Move forward if there's enough space
-#             self.move_cmd.linear.x = 0.5
-#             self.move_cmd.angular.z = 0.0
-
-#         # Publish the movement command
-#         self.publisher.publish(self.move_cmd)
-
-# def main(args=None):
-#     rclpy.init(args=args)
-#     move_robot_node = MoveRobot()
-
-#     try:
-#         rclpy.spin(move_robot_node)
-#     except KeyboardInterrupt:
-#         pass
-
-#     # Shutdown and cleanup
-#     move_robot_node.destroy_node()
-#     rclpy.shutdown()
-
-# if __name__ == '__main__':
-#     main()
