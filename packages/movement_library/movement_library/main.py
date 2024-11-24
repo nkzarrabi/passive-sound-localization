@@ -32,7 +32,7 @@ class MovementNode(Node):
 
         # LOCALIZATION RESULT HERE...
         self.create_subscription(
-            LocalizationResult, "localization_results", self.localizer_callback, 10
+            LocalizationResult, "particle_filter_results", self.localizer_callback, 10
         )
         self.localizationSubscription = {"distance": 0, "angle": 0, "executed": False}
 
