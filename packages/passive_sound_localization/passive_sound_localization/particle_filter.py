@@ -1,5 +1,5 @@
 import numpy as np
-import random
+import secrets
 
 class ParticleFilter:
     def __init__(self, num_particles, state_dim, motion_model, measurement_model, resampling_method):
@@ -45,7 +45,7 @@ def measurement_model(state, measurement):
 
 def systematic_resampling(weights):
     N = len(weights)
-    positions = (np.arange(N) + random.random()) / N
+    positions = (np.arange(N) + secrets.SystemRandom().random()) / N
     indexes = np.zeros(N, 'i')
     cumulative_sum = np.cumsum(weights)
     i, j = 0, 0
